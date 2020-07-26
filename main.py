@@ -2,7 +2,10 @@ import pygame
 import math
 import random
 import time
+import csv
 from pygame import mixer
+
+
 
 # Set Up pygame to work
 pygame.init()
@@ -36,28 +39,36 @@ def Player(x,y):
     screen.blit(pimp, (x,y)) # bilt = วางภาพในหน้าจอ
 
 
-#--------Enemy-------#
-# 2 - enemy - virus.png
+#--------Apple-------#
+# 2 - item - apple.png
 esize = 64
 
-eimg = pygame.image.load('virus.png')
+aimg = pygame.image.load('apple.png')
 ex = 50
 ey = 0
 eychange = 5
 
-def Enemy(x, y):
-    screen.blit(eimg, (x,y))
+# เช็คว่า apple ตกยังจะได้ไม่ตกซ้ำ
+Aple_Fall = False
 
-def reset_Enemy():
+def Apple(x, y):
+    screen.blit(aimg, (x,y))
+
+def reset_Apple():
     global ex, ey, allscore
     ey = -20
     ex = random.randint(esize, WIDTH - esize)
 
 #--------Multi-Enemy-----#
+# 3 - enemy - virus.png
+eimg = pygame.image.load('virus.png')
 exlist = [] #ตำแหน่งแกน x ของ enemy
 eylist = [] #ตำแหน่งแกน y ของ enemy
 ey_change_list = []
 allenemy = 4
+
+def Enemy(x, y):
+    screen.blit(eimg, (x,y))
 
 def reset_Multi_Enemy(i):
     global exlist, eylist
@@ -131,7 +142,7 @@ def showscore():
 
 
 #-------Ammo------------#
-# TODO ammo_reload
+# จำนวนกระสุน
 ammo_count = 10
 
 def showammo():
@@ -143,12 +154,31 @@ def reload():
     sound_reload.play()
     ammo_count = 10
 
+
+#--------High Score-----#
+
+highscore = 0
+
+def readHighScore():
+    global highscore
+    with open('highscore.csv', 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            highscore = int(row[0])
+
+def showHighscore():
+    highscorebar = font.render(f'HighScore: {highscore}',True, (255,0,255))
+    screen.blit(highscorebar,(30,65))
+
+readHighScore()
+
 #--------Heart---------#
-health = 10
+# player health
+health = 3
 
 def showhealth():
     healthbar = font.render(f'Health: {health}',True, (255,0,0))
-    screen.blit(healthbar,(30,65))
+    screen.blit(healthbar,(30,110))
 
 
 #-------Game Over------#
@@ -183,6 +213,8 @@ while running:
     showscore()
     showammo()
     showhealth()
+    showHighscore()
+    
 
     for event in pygame.event.get():
         # รันลูปเช็คว่ามีการกดปิด pygame[x]
@@ -207,23 +239,26 @@ while running:
                 gameover = False
                 for i in range(allenemy):
                     reset_Multi_Enemy(i)
-                reset_Enemy()
-                health = 10
+                reset_Apple()
+                health = 3
                 ammo_count = 10
                 allscore = 0
+                readHighScore()
 
-
-        
-            
-        
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_LEFT or  event.key == pygame.K_RIGHT or event.key == pygame.K_a or event.key == pygame.K_d:
                 It_Down = False
 
     
     #---------------Game Over----------------
+    #ถ้าเลือดเหลือ 0 Gameover
     if health <= 0:
         health = 0
+        if allscore > highscore:
+            with open('highscore.csv', 'w', newline='') as f:
+                thewriter = csv.writer(f)
+
+                thewriter.writerow([f'{allscore}'])
         GameOver()
 
     #----------------Run Player---------------------
@@ -252,23 +287,22 @@ while running:
 
     
 
-    #---------------Run Enemy-----------------------
-    if not gameover:
-        Enemy(ex, ey)
+    #---------------Run Apple-----------------------
+    if not gameover and allscore % 5 == 0 and allscore != 0:
+        Apple(ex, ey)
         ey += eychange
 
     # เข็คว่าชนศัตรูยัง
-    collision = isCollision(ex, ey, mx, my)
+    collision = isCollision(ex, ey, px, py)
     if collision:
-        my = HEIGHT - psize
-        mstate = 'ready'
-        sound_damage.play()
-        reset_Enemy()
-        allscore += 1
-
+        reset_Apple()
+        #กิน apple แล้วเพิ่ม speed
+        p_speed += 20
+        
     if ey >= WIDTH:
-        health -= 1;
-        reset_Enemy()
+        reset_Apple()
+
+    
 
     
     #---------------Run Multi Enemy------------------
@@ -306,7 +340,8 @@ while running:
         if collision:
             my = HEIGHT - psize
             mstate = 'ready'
-            health += 2
+            # ฆ่าบอส heal เลือด 1
+            health += 1
             reset_Boss()
             
 
@@ -324,10 +359,6 @@ while running:
     if my <= 0:
         my = HEIGHT - psize
         mstate = 'ready'
-
-    
-    
-    print(allscore)
 
     pygame.display.update()
     screen.fill((0,0,0))
